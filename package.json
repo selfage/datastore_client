@@ -1,0 +1,27 @@
+{
+  "name": "@selfage/datastore_client",
+  "version": "0.0.1",
+  "description": "Provides a type-safe client library to interact with Google Cloud Datastore.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/selfage/datastore_client.git"
+  },
+  "keywords": [
+    "Datastore"
+  ],
+  "author": "Yuxuan Xie <teststaybaka@gmail.com> (http://www.yuxuanxie.com)",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/selfage/datastore_client/issues"
+  },
+  "homepage": "https://github.com/selfage/datastore_client#readme",
+  "main": "./client.js",
+  "types": "./client.d.ts",
+  "devDependencies": {
+    "@selfage/tsconfig": "^1.0.3"
+  },
+  "dependencies": {
+    "@google-cloud/datastore": "^6.3.1",
+    "@selfage/message": "^1.0.3"
+  }
+}
