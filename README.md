@@ -321,3 +321,36 @@ async function main(): void {
 ```
 
 Note that you need to upload the generated `index.yaml` to Datastore to build those indexes first.
+
+## Delete values
+
+Simply providing a list of `id`.
+
+```TypeScript
+import { DatastoreClient } from '@selfage/datastore_client';
+import { TASK_MODEL } from './task_model';
+import { Task, Priority } from './task';
+
+async function main(): void {
+  let client = DatastoreClient.create();
+  await client.delete(['12345', '23456'], TASK_MODEL);
+}
+```
+
+## Transaction
+
+`DatastoreClient` also acts as a factory to create transactions, which then can do all operations above but in a transaction. Finally you'd need to commit it.
+
+```TypeScript
+import { DatastoreClient } from '@selfage/datastore_client';
+
+async function main(): void {
+  let client = DatastoreClient.create();
+  let transaction = await client.startTransaction();
+  // await transaction.save([{}], TASK_MODEL, 'insert');
+  // let values = await transaction.allocateKeys([{}], TASK_MODEL);
+  // let values = await transaction.get(['12345', '23456'], TASK_MODEL);
+  // let {values, cursor} = await transaction.query(taskDoneQuery);
+  await transaction.commit();
+}
+```
