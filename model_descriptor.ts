@@ -3,18 +3,18 @@ import { MessageDescriptor } from "@selfage/message/descriptor";
 // Defined by Datastore API but not exported.
 export type Operator = "=" | "<" | ">" | "<=" | ">=";
 export interface DatastoreFilter {
-  indexName: string;
-  indexValue: any;
+  fieldName: string;
+  fieldValue: any;
   operator: Operator;
 }
 
 export interface DatastoreOrdering {
-  indexName: string;
+  fieldName: string;
   descending: boolean;
 }
 
 export interface DatastoreQuery<T> {
-  startToken?: string;
+  startCursor?: string;
   limit?: number;
   filters: Array<DatastoreFilter>;
   orderings: Array<DatastoreOrdering>;

@@ -1,3 +1,4 @@
+import bigInt = require("big-integer");
 import { DatastoreModelDescriptor, DatastoreQuery } from "./model_descriptor";
 import { Datastore, Key, Query, Transaction } from "@google-cloud/datastore";
 import { parseMessage } from "@selfage/message/parser";
@@ -26,13 +27,12 @@ export class DatastoreClient {
     return transaction;
   }
 
-  // Only use for numberic keys.
   public async allocateKeys<T>(
     values: Array<T>,
     descriptor: DatastoreModelDescriptor<T>,
     transaction?: Transaction
   ): Promise<Array<T>> {
-    let incompleteKey = this.datastore.key([descriptor.name]);
+    let incompleteKey = this.datastore.key(descriptor.name);
     let response: any;
     if (!transaction) {
       response = await this.datastore.allocateIds(incompleteKey, values.length);
@@ -41,7 +41,10 @@ export class DatastoreClient {
     }
     let keys = response[0] as Array<Key>;
     for (let i = 0; i < keys.length; i++) {
-      (values[i] as any)[descriptor.key] = keys[i].path[1];
+      let uint8Array = bigInt(keys[i].id).toArray(256).value;
+      (values[i] as any)[descriptor.key] = Buffer.from(uint8Array).toString(
+        "base64"
+      );
     }
     return values;
   }
@@ -105,17 +108,17 @@ export class DatastoreClient {
     } else {
       query = transaction.createQuery(descriptor.name);
     }
-    if (datastoreQuery.startToken) {
-      query.start(datastoreQuery.startToken);
+    if (datastoreQuery.startCursor) {
+      query.start(datastoreQuery.startCursor);
     }
     if (datastoreQuery.limit) {
       query.limit(datastoreQuery.limit);
     }
     for (let ordering of datastoreQuery.orderings) {
-      query.order(ordering.indexName, { descending: ordering.descending });
+      query.order(ordering.fieldName, { descending: ordering.descending });
     }
     for (let filter of datastoreQuery.filters) {
-      query.filter(filter.indexName, filter.operator, filter.indexValue);
+      query.filter(filter.fieldName, filter.operator, filter.fieldValue);
     }
     let response = await query.run();
     let values = new Array<T>();
