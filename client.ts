@@ -99,14 +99,13 @@ export class DatastoreClient {
 
   public async query<T>(
     datastoreQuery: DatastoreQuery<T>,
-    descriptor: DatastoreModelDescriptor<T>,
     transaction?: Transaction
   ): Promise<{ values: Array<T>; cursor?: string }> {
     let query: Query;
     if (!transaction) {
-      query = this.datastore.createQuery(descriptor.name);
+      query = this.datastore.createQuery(datastoreQuery.modelDescriptor.name);
     } else {
-      query = transaction.createQuery(descriptor.name);
+      query = transaction.createQuery(datastoreQuery.modelDescriptor.name);
     }
     if (datastoreQuery.startCursor) {
       query.start(datastoreQuery.startCursor);
@@ -123,7 +122,9 @@ export class DatastoreClient {
     let response = await query.run();
     let values = new Array<T>();
     for (let rawValue of response[0]) {
-      values.push(parseMessage(rawValue, descriptor.valueDescriptor));
+      values.push(
+        parseMessage(rawValue, datastoreQuery.modelDescriptor.valueDescriptor)
+      );
     }
     let cursor = response[1].endCursor;
     return {

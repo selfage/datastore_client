@@ -1,5 +1,12 @@
 import { MessageDescriptor } from "@selfage/message/descriptor";
 
+export interface DatastoreModelDescriptor<T> {
+  name: string;
+  key: string;
+  excludedIndexes: Array<string>;
+  valueDescriptor: MessageDescriptor<T>;
+}
+
 // Defined by Datastore API but not exported.
 export type Operator = "=" | "<" | ">" | "<=" | ">=";
 export interface DatastoreFilter {
@@ -14,15 +21,9 @@ export interface DatastoreOrdering {
 }
 
 export interface DatastoreQuery<T> {
+  modelDescriptor: DatastoreModelDescriptor<T>;
   startCursor?: string;
   limit?: number;
   filters: Array<DatastoreFilter>;
   orderings: Array<DatastoreOrdering>;
-}
-
-export interface DatastoreModelDescriptor<T> {
-  name: string;
-  key: string;
-  excludedIndexes: Array<string>;
-  valueDescriptor: MessageDescriptor<T>;
 }
