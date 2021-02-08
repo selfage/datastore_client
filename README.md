@@ -12,42 +12,9 @@ You are also encouraged to understand how Datastore works essentially before usi
 
 ## Generate DatastoreModelDescriptor & QueryBuilder & composite indexes
 
-With `@selfage/cli`, it rqeuires an input file, e.g., `task_model.json` which describes the model as the following.
+With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` which describes both the model and the message as the following.
 
-```Json
-[{
-  "datastore": {
-    "messageName": "Task",
-    "import": "./task",
-    "key": "id",
-    "indexes": [{
-      "name": "TaskDone",
-      "properties": [{
-        "fieldName": "done"
-      }, {
-        "fieldName": "created",
-        "descending": true
-      }]
-    }, {
-      "name": "TaskDonePriority",
-      "properties": [{
-        "fieldName": "done"
-      }, {
-        "fieldName": "priority",
-        "descending": true
-      }, {
-        "fieldName": "created",
-        "descending": true
-      }]
-    }]
-  }
-}]
-```
-
-The schema of this json file is an array of [Definition](https://github.com/selfage/cli/blob/559b08425daa4383a5d1887dbff6908a5016b3ef/generate/definition.ts#L66).
-
-`Task` points to a message definition, which is imported from `task.json` which looks like the following.
-```Json
+```JSON
 [{
   "enum": {
     "name": "Priority",
@@ -77,24 +44,58 @@ The schema of this json file is an array of [Definition](https://github.com/self
     }, {
       "name": "created",
       "type": "number"
-    }]
+    }],
+    "datastore": {
+      "output": "./task_model",
+      "key": "id",
+      "indexes": [{
+        "name": "TaskDone",
+        "fields": [{
+          "fieldName": "done"
+        }, {
+          "fieldName": "created",
+          "descending": true
+        }]
+      }, {
+        "name": "TaskDonePriority",
+        "fields": [{
+          "fieldName": "done"
+        }, {
+          "fieldName": "priority",
+          "descending": true
+        }, {
+          "fieldName": "created",
+          "descending": true
+        }]
+      }]
+    }
   }
 }]
 ```
 
-You first need to run `selfage gen task` to get a `task.ts` file, followed by `selfage gen task_model -i index.yaml` to get a `task_model.ts` file and a `index.yaml` file for composite indexes.
+The schema of this json file is an array of [Definition](https://github.com/selfage/cli/blob/14a9f6e40a11e2cac88fb67d4b18e93c8e286061/generate/definition.ts#L59).
 
-See `@selfage/message` for detailed explanation of generating message and enum descriptors. In short, `task.ts` will export `Task` interface, `TASK` message descriptor, `Priority` enum, and `PRIORITY` enum descriptor which are used by examples later as well as `task_model.ts` showing as below.
+By running `selfage gen task -i index.yaml`, you will to get `task.ts`, `task_model.ts` and `index.yaml`.
+
+See `@selfage/message` for detailed explanation of generating message and enum descriptors to help understand `task.json`. In short, `task.ts` will export `Task` interface, `TASK` message descriptor, `Priority` enum, and `PRIORITY` enum descriptor which are used by examples later as well as `task_model.ts` which is showing as below.
 
 ```TypeScript
 import { DatastoreQuery, DatastoreFilter, DatastoreOrdering, Operator, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
-import { Task, TASK } from './task';
+import { Priority, Task, TASK } from './task';
+
+export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
+  name: "Task",
+  key: "id",
+  excludedIndexes: ["id", "payload"],
+  valueDescriptor: TASK,
+}
 
 export class TaskDoneQueryBuilder {
   private datastoreQuery: DatastoreQuery<Task>;
 
   public constructor() {
     this.datastoreQuery = {
+      modelDescriptor: TASK_MODEL,
       filters: new Array<DatastoreFilter>(),
       orderings: [
         {
@@ -138,6 +139,7 @@ export class TaskDonePriorityQueryBuilder {
 
   public constructor() {
     this.datastoreQuery = {
+      modelDescriptor: TASK_MODEL,
       filters: new Array<DatastoreFilter>(),
       orderings: [
         {
@@ -187,16 +189,9 @@ export class TaskDonePriorityQueryBuilder {
     return this.datastoreQuery;
   }
 }
-
-export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
-  name: "Task",
-  key: "id",
-  excludedIndexes: ["id", "payload"],
-  valueDescriptor: TASK,
-}
 ```
 
-It's recommended to commit `task_model.ts` as part of your project, because you will need to reference the generated code in other files.
+It's recommended to commit `task_model.ts` as part of your project, because you will need to reference the generated code in other files. We will explain its usage as an example below.
 
 It's also recommneded to commit `index.yaml` as well as upload it to Datastore, which looks like the following.
 
@@ -248,7 +243,7 @@ async function main(): void {
     id: '12345',
     payload: 'some params',
     done: false,
-    priority: Priority.HIGH
+    priority: Priority.HIGH,
     created: 162311234
   }],
   TASK_MODEL,
@@ -274,7 +269,7 @@ async function main(): void {
   let values = await client.allocateKeys([{
     payload: 'some params',
     done: false,
-    priority: Priority.HIGH
+    priority: Priority.HIGH,
     created: 162311234
   }], TASK_MODEL);
 }
@@ -350,7 +345,89 @@ async function main(): void {
   // await transaction.save([{}], TASK_MODEL, 'insert');
   // let values = await transaction.allocateKeys([{}], TASK_MODEL);
   // let values = await transaction.get(['12345', '23456'], TASK_MODEL);
+  // await client.delete(['12345', '23456'], TASK_MODEL);
   // let {values, cursor} = await transaction.query(taskDoneQuery);
   await transaction.commit();
 }
 ```
+
+## Known issue
+
+Note that if your Datastore model uses an enum which is defined a package, the generated Datastore model file cannot import that enum properly. Simplify the example above `task.json` as below.
+
+```JSON
+[{
+  "message": {
+    "name": "Task",
+    "fields": [{
+      "name": "id",
+      "type": "string"
+    }, {
+      "name": "priority",
+      "type": "Priority",
+      "import": "priority_package"
+    }],
+    "datastore": {
+      "output": "./task_model",
+      "key": "id",
+      "indexes": [{
+        "name": "TaskPriority",
+        "fields": [{
+          "fieldName": "priority"
+        }]
+      }]
+    }
+  }
+}]
+```
+
+By running `selfage gen task -i index.yaml`, you will get `task_model.ts` as below, igoring the other two files.
+
+```TypeScript
+import { DatastoreQuery, DatastoreFilter, DatastoreOrdering, Operator, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
+import { Priority } from './priority_package';
+import { Task, TASK } from './task';
+
+export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
+  name: "Task",
+  key: "id",
+  excludedIndexes: ["id"],
+  valueDescriptor: TASK,
+}
+
+export class TaskPriorityQueryBuilder {
+  private datastoreQuery: DatastoreQuery<Task>;
+
+  public constructor() {
+    this.datastoreQuery = {
+      modelDescriptor: TASK_MODEL,
+      filters: new Array<DatastoreFilter>(),
+      orderings: [
+      ]
+    }
+  }
+  public start(cursor: string): this {
+    this.datastoreQuery.startCursor = cursor;
+    return this;
+  }
+  public limit(num: number): this {
+    this.datastoreQuery.limit = num;
+    return this;
+  }
+  public filterByPriority(operator: Operator, value: Priority): this {
+    this.datastoreQuery.filters.push({
+      fieldName: "priority",
+      fieldValue: value,
+      operator: operator,
+    });
+    return this;
+  }
+  public build(): DatastoreQuery<Task> {
+    return this.datastoreQuery;
+  }
+}
+```
+
+Note that `import { Priority } from './priority_package';` is incorrect, which should be `import { Priority } from 'priority_package';`.
+
+It might seem easy to fix for this case. But it can get messy, if `task.ts` and `task_model.ts` are located in two directories, e.g., `./directory_a/task.ts` and `./directory_b/task_model.ts`, where each directory contains its own `./node_modules/` directory. Then `import { Priority } from 'priority_package';` inside `task.ts` resolves to `./directory_a/node_modules/priority_package`, whereas inside `task_model.ts` it resolves to `./directory_b/node_modules/priority_package`.
