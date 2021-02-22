@@ -6,7 +6,7 @@
 
 ## Overview
 
-Written in TypeScript and compiled to ES6. Provides a type-safe Google Cloud Datastore API as a thin layer on top of `@google-cloud/datastore`, especially when using together with `@selfage/cli`.
+Written in TypeScript and compiled to ES6 with inline source map & source. See [@selfage/tsconfig](https://www.npmjs.com/package/@selfage/tsconfig) for full compiler options. Provides a type-safe Google Cloud Datastore API as a thin layer on top of `@google-cloud/datastore`, especially when using together with `@selfage/cli`.
 
 You are also encouraged to understand how Datastore works essentially before using this lib.
 
@@ -73,7 +73,7 @@ With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` which describe
 }]
 ```
 
-The schema of this json file is an array of [Definition](https://github.com/selfage/cli/blob/14a9f6e40a11e2cac88fb67d4b18e93c8e286061/generate/definition.ts#L59).
+The schema of this json file is an array of [Definition](https://github.com/selfage/cli/blob/0f724015a4ea309d80ff231db555fe0383c91329/generate/definition.ts#L73).
 
 By running `selfage gen task -i index.yaml`, you will to get `task.ts`, `task_model.ts` and `index.yaml`.
 
