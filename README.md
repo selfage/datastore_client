@@ -6,7 +6,7 @@
 
 ## Overview
 
-Written in TypeScript and compiled to ES6 with inline source map & source. See [@selfage/tsconfig](https://www.npmjs.com/package/@selfage/tsconfig) for full compiler options. Provides a type-safe Google Cloud Datastore API as a thin layer on top of `@google-cloud/datastore`, especially when using together with `@selfage/cli`.
+Written in TypeScript and compiled to ES6 with inline source map & source. See [@selfage/tsconfig](https://www.npmjs.com/package/@selfage/tsconfig) for full compiler options. Provides type-safe Google Cloud Datastore APIs as a thin layer on top of `@google-cloud/datastore`, especially when using together with `@selfage/cli` to generate TypeScript code.
 
 You are also encouraged to understand how Datastore works essentially before using this lib.
 
@@ -431,3 +431,7 @@ export class TaskPriorityQueryBuilder {
 Note that `import { Priority } from './priority_package';` is incorrect, which should be `import { Priority } from 'priority_package';`.
 
 It might seem easy to fix for this case. But it can get messy, if `task.ts` and `task_model.ts` are located in two directories, e.g., `./directory_a/task.ts` and `./directory_b/task_model.ts`, where each directory contains its own `./node_modules/` directory. Then `import { Priority } from 'priority_package';` inside `task.ts` resolves to `./directory_a/node_modules/priority_package`, whereas inside `task_model.ts` it resolves to `./directory_b/node_modules/priority_package`.
+
+## Design considerations
+
+We choose to define `datastore` field inside `message` because any change of `message` must be also reflected in the generated `DatastoreModelDescriptor` and `QueryBuilder` in one PR/git commit, to make sure fields are properly indexed. Otherwise, they might not be excluded from indexing or composite indexes might need to be back-filled. 
