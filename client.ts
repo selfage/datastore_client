@@ -18,6 +18,15 @@ interface Entity {
   method: SaveMethod;
 }
 
+function parseValue<T>(
+  rawValue: any,
+  descriptor: DatastoreModelDescriptor<T>
+): T {
+  let value = parseMessage(rawValue, descriptor.valueDescriptor);
+  (value as any)[descriptor.key] = rawValue[Datastore.KEY].name;
+  return value;
+}
+
 async function allocateKeys<T>(
   datastoreRequest: DatastoreRequest,
   values: Array<T>,
@@ -50,7 +59,7 @@ async function getValuesByKeys<T>(
   let response = await datastoreRequest.get(datastoreKeys);
   let results = new Array<T>();
   for (let rawValue of response[0]) {
-    results.push(parseMessage(rawValue, descriptor.valueDescriptor));
+    results.push(parseValue(rawValue, descriptor));
   }
   return results;
 }
@@ -75,9 +84,11 @@ async function saveValues<T>(
 ): Promise<void> {
   let entities = new Array<Entity>();
   for (let value of values) {
+    let keyValue = (value as any)[descriptor.key];
     let key = new Key({
-      path: [descriptor.name, (value as any)[descriptor.key]],
+      path: [descriptor.name, keyValue],
     });
+    delete (value as any)[descriptor.key];
     entities.push({
       key: key,
       data: value,
@@ -108,9 +119,7 @@ async function queryValues<T>(
   let response = await query.run();
   let values = new Array<T>();
   for (let rawValue of response[0]) {
-    values.push(
-      parseMessage(rawValue, datastoreQuery.modelDescriptor.valueDescriptor)
-    );
+    values.push(parseValue(rawValue, datastoreQuery.modelDescriptor));
   }
   let cursor = response[1].endCursor;
   return {

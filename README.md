@@ -252,7 +252,7 @@ async function main(): void {
 }
 ```
 
-Note that the `id` field is stored twice in Datastore, as part of the value object and as part of Datastore key, if you were calculating Datastore storage cost.
+Note that the `id` field is stripped and converted to Datastore key when saving. If you inspect your Datastore dashboard/console, or query directly from Datastore, you should expect the `id` field to not be set. The `id` field will be populated if you use get/query method described below.
 
 ## Allocate keys/ids
 
