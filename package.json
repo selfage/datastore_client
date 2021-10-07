@@ -1,6 +1,6 @@
 {
   "name": "@selfage/datastore_client",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Provides a type-safe client library to interact with Google Cloud Datastore.",
   "repository": {
     "type": "git",
