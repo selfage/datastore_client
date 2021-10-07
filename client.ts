@@ -40,9 +40,8 @@ async function allocateKeys<T>(
   let keys = response[0] as Array<Key>;
   for (let i = 0; i < keys.length; i++) {
     let uint8Array = bigInt(keys[i].id).toArray(256).value;
-    (values[i] as any)[descriptor.key] = Buffer.from(uint8Array).toString(
-      "base64"
-    );
+    (values[i] as any)[descriptor.key] =
+      Buffer.from(uint8Array).toString("base64");
   }
   return values;
 }
@@ -121,10 +120,13 @@ async function queryValues<T>(
   for (let rawValue of response[0]) {
     values.push(parseValue(rawValue, datastoreQuery.modelDescriptor));
   }
-  let cursor = response[1].endCursor;
+  let cursor: string;
+  if (response[1].moreResults !== "NO_MORE_RESULTS") {
+    cursor = response[1].endCursor;
+  }
   return {
-    values: values,
-    cursor: cursor,
+    values,
+    cursor,
   };
 }
 
