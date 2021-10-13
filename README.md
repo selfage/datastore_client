@@ -12,7 +12,7 @@ You are also encouraged to understand how Datastore works essentially before usi
 
 ## Generate DatastoreModelDescriptor & QueryBuilder & composite indexes
 
-With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` which describes both the model and the message as the following.
+With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` shown as the following.
 
 ```JSON
 [{
@@ -48,24 +48,34 @@ With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` which describe
     "datastore": {
       "output": "./task_model",
       "key": "id",
-      "indexes": [{
+      "queries": [{
         "name": "TaskDone",
-        "fields": [{
-          "fieldName": "done"
-        }, {
+        "filters": [{
+          "fieldName": "done",
+          "operator": "="
+        }],
+        "orderings": [{
           "fieldName": "created",
           "descending": true
-        }]
-      }, {
-        "name": "TaskDonePriority",
-        "fields": [{
-          "fieldName": "done"
         }, {
           "fieldName": "priority",
-          "descending": true
+          "descending": false
+        }]
+      }, {
+        "name": "TaskDoneSince",
+        "filters": [{
+          "fieldName": "done",
+          "operator": "="
         }, {
           "fieldName": "created",
+          "operator": ">"
+        }],
+        "orderings": [{
+          "fieldName": "created",
           "descending": true
+        }, {
+          "fieldName": "priority",
+          "descending": false
         }]
       }]
     }
@@ -77,11 +87,11 @@ The schema of this json file is an array of [Definition](https://github.com/self
 
 By running `selfage gen task -i index.yaml`, you will to get `task.ts`, `task_model.ts` and `index.yaml`.
 
-See `@selfage/message` for detailed explanation of generating message and enum descriptors to help understand `task.json`. In short, `task.ts` will export `Task` interface, `TASK` message descriptor, `Priority` enum, and `PRIORITY` enum descriptor which are used by examples later as well as `task_model.ts` which is showing as below.
+See `@selfage/message` for detailed explanation of generating message and enum descriptors to help understand `task.json`. In short, `task.ts` will export `Task` interface, `TASK` message descriptor, `Priority` enum, and `PRIORITY` enum descriptor which are used by examples later. `task_model.ts` is shown as below.
 
 ```TypeScript
-import { DatastoreQuery, DatastoreFilter, DatastoreOrdering, Operator, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
-import { Priority, Task, TASK } from './task';
+import { DatastoreQuery, DatastoreFilter, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
+import { Task, TASK } from './temp';
 
 export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
   name: "Task",
@@ -91,20 +101,28 @@ export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
 }
 
 export class TaskDoneQueryBuilder {
-  private datastoreQuery: DatastoreQuery<Task>;
+  private doneEqualTo: DatastoreFilter = {
+    fieldName: "done",
+    operator: "=",
+    fieldValue: undefined
+  };
+  private datastoreQuery: DatastoreQuery<Task> = {
+    modelDescriptor: TASK_MODEL,
+    filters: [
+      this.doneEqualTo,
+    ],
+    orderings: [
+      {
+        fieldName: "created",
+        descending: true
+      },
+      {
+        fieldName: "priority",
+        descending: false
+      },
+    ]
+  };
 
-  public constructor() {
-    this.datastoreQuery = {
-      modelDescriptor: TASK_MODEL,
-      filters: new Array<DatastoreFilter>(),
-      orderings: [
-        {
-          fieldName: "created",
-          descending: true
-        },
-      ]
-    }
-  }
   public start(cursor: string): this {
     this.datastoreQuery.startCursor = cursor;
     return this;
@@ -113,20 +131,8 @@ export class TaskDoneQueryBuilder {
     this.datastoreQuery.limit = num;
     return this;
   }
-  public filterByDone(operator: Operator, value: boolean): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "done",
-      fieldValue: value,
-      operator: operator,
-    });
-    return this;
-  }
-  public filterByCreated(operator: Operator, value: number): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "created",
-      fieldValue: value,
-      operator: operator,
-    });
+  public equalToDone(value: boolean): this {
+    this.doneEqualTo.fieldValue = value;
     return this;
   }
   public build(): DatastoreQuery<Task> {
@@ -134,25 +140,35 @@ export class TaskDoneQueryBuilder {
   }
 }
 
-export class TaskDonePriorityQueryBuilder {
-  private datastoreQuery: DatastoreQuery<Task>;
+export class TaskDoneSinceQueryBuilder {
+  private doneEqualTo: DatastoreFilter = {
+    fieldName: "done",
+    operator: "=",
+    fieldValue: undefined
+  };
+  private createdGreaterThan: DatastoreFilter = {
+    fieldName: "created",
+    operator: ">",
+    fieldValue: undefined
+  };
+  private datastoreQuery: DatastoreQuery<Task> = {
+    modelDescriptor: TASK_MODEL,
+    filters: [
+      this.doneEqualTo,
+      this.createdGreaterThan,
+    ],
+    orderings: [
+      {
+        fieldName: "created",
+        descending: true
+      },
+      {
+        fieldName: "priority",
+        descending: false
+      },
+    ]
+  };
 
-  public constructor() {
-    this.datastoreQuery = {
-      modelDescriptor: TASK_MODEL,
-      filters: new Array<DatastoreFilter>(),
-      orderings: [
-        {
-          fieldName: "priority",
-          descending: true
-        },
-        {
-          fieldName: "created",
-          descending: true
-        },
-      ]
-    }
-  }
   public start(cursor: string): this {
     this.datastoreQuery.startCursor = cursor;
     return this;
@@ -161,28 +177,12 @@ export class TaskDonePriorityQueryBuilder {
     this.datastoreQuery.limit = num;
     return this;
   }
-  public filterByDone(operator: Operator, value: boolean): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "done",
-      fieldValue: value,
-      operator: operator,
-    });
+  public equalToDone(value: boolean): this {
+    this.doneEqualTo.fieldValue = value;
     return this;
   }
-  public filterByPriority(operator: Operator, value: Priority): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "priority",
-      fieldValue: value,
-      operator: operator,
-    });
-    return this;
-  }
-  public filterByCreated(operator: Operator, value: number): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "created",
-      fieldValue: value,
-      operator: operator,
-    });
+  public greaterThanCreated(value: number): this {
+    this.createdGreaterThan.fieldValue = value;
     return this;
   }
   public build(): DatastoreQuery<Task> {
@@ -199,21 +199,19 @@ It's also recommneded to commit `index.yaml` as well as upload it to Datastore, 
 indexes:
   - kind: Task
     properties:
+      - name: done
+        direction: asc
       - name: created
         direction: desc
-      - name: done
       - name: priority
-        direction: desc
-  - kind: Task
-    properties:
-      - name: created
-        direction: desc
-      - name: done
+        direction: asc
 ```
 
-Only composite indexes will be included in it, as it's Datastore's requirement. And if you already have `index.yaml` in your project, and you run `selfage gen task_model -i index.yaml` again with new indexes in `task_model.json`, `index.yaml` will be updated to include new ones. And if you run `selfage gen user_model -i index.yaml` later for the other user model, `index.yaml` will be updated with those new indexes as well.
+Only composite indexes will be included in it, as it's Datastore's requirement. And only one composite index is generated because both queries can share the same index.
 
-Note that if you deleted indexes from `task_model.json` and run `selfage gen task_model -i index.yaml`, those won't be deleted from `index.yaml`. You have to delete those indexes manually from `index.yaml` and from Datastore, when you are sure you don't need to keep them for backwards compatibility or future rollbacks.
+If you already have `index.yaml`, and you run `selfage gen task -i index.yaml`, `index.yaml` will be updated to include the index above.
+
+Because of that, `selfage gen task -i index.yaml` will never delete indexes from `index.yaml` even if you deleted queries from `task.json`. You have to delete unused indexes manually from `index.yaml` and use Datastore's CLI to update your indexes in Datastore.
 
 ## Create DatastoreClient
 
@@ -296,7 +294,7 @@ async function main(): void {
 
 ## Query with QueryBuilder
 
-A QueryBuilder is generated for each of `"indexes": ...`, named as `${index name}QueryBuilder`, and with `filterBy${captalized field name}()` function(s) which takes an `Operator` and a `value` as arguments. `Operator` is a [string literal type](https://github.com/selfage/datastore_client/blob/7301ab3718cdb120111e64de444c902b4e977a1b/model_descriptor.ts#L4).
+`QueryBuilder`s are generated from `"queries": ...` field. Each of them is named as `${query's name}QueryBuilder`, and with `${operator name}${captalized field name}()` function(s) which takes a `value` with proper type as its only argument.
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
@@ -304,10 +302,9 @@ import { TASK_MODEL, TaskDoneQueryBuilder } from './task_model';
 
 async function main(): void {
   let client = DatastoreClient.create();
-  let taskDoneQuery = new TaskDoneQueryBuilder()
-    .filterByDone('=', true)
-    .filterByCreated('>', 1000100100)
-    .filterByCreated('<', 2000200200)
+  let taskDoneQuery = new TaskDoneSinceQueryBuilder()
+    .equalToDone(true)
+    .greaterThanCreated(1000100100)
     // .start(cursor) if you have one to use.
     .limit(10)
     .build();
@@ -315,7 +312,11 @@ async function main(): void {
 }
 ```
 
-Note that you need to upload the generated `index.yaml` to Datastore to build those indexes first.
+Note that you need to update the generated `index.yaml` to Datastore to build those indexes first.
+
+Because query order has already been specified in `queries` field, you only need to set the values to filter by. And you MUST set all filters, otherwise Datastore might complain because of the lack of a corresponding composite index.
+
+If you read through Datastore's document carefully about queries and indexes or have played with it, you might notice its restrctive requirements about the order of to apply filters and sort orders in a query, which has to match the order of fields/properties in the corresponding composite index. Therefore if you change the order of `filters` or `orderings` in e.g. `task.json`, you'd get a different composite index generated in `index.yaml` and a different `QueryBuilder`. When setting filters through `QueryBuilder`s, although you can set them in arbitrary order, they will be applied at the exact order as specified in `queries` field.
 
 ## Delete values
 
@@ -353,7 +354,7 @@ async function main(): void {
 
 ## Known issue
 
-Note that if your Datastore model uses an enum which is defined a package, the generated Datastore model file cannot import that enum properly. Simplify the example above `task.json` as below.
+Note that if your Datastore model uses an enum which is defined in an NPM package, the generated Datastore model file cannot import that enum properly. Simplify the example above `task.json` as below.
 
 ```JSON
 [{
