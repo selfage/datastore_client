@@ -101,16 +101,9 @@ export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
 }
 
 export class TaskDoneQueryBuilder {
-  private doneEqualTo: DatastoreFilter = {
-    fieldName: "done",
-    operator: "=",
-    fieldValue: undefined
-  };
   private datastoreQuery: DatastoreQuery<Task> = {
     modelDescriptor: TASK_MODEL,
-    filters: [
-      this.doneEqualTo,
-    ],
+    filters: [],
     orderings: [
       {
         fieldName: "created",
@@ -132,7 +125,11 @@ export class TaskDoneQueryBuilder {
     return this;
   }
   public equalToDone(value: boolean): this {
-    this.doneEqualTo.fieldValue = value;
+    this.datastoreQuery.filters.push({
+      fieldName: "done",
+      fieldValue: value,
+      operator: "=",
+    });
     return this;
   }
   public build(): DatastoreQuery<Task> {
@@ -141,22 +138,9 @@ export class TaskDoneQueryBuilder {
 }
 
 export class TaskDoneSinceQueryBuilder {
-  private doneEqualTo: DatastoreFilter = {
-    fieldName: "done",
-    operator: "=",
-    fieldValue: undefined
-  };
-  private createdGreaterThan: DatastoreFilter = {
-    fieldName: "created",
-    operator: ">",
-    fieldValue: undefined
-  };
   private datastoreQuery: DatastoreQuery<Task> = {
     modelDescriptor: TASK_MODEL,
-    filters: [
-      this.doneEqualTo,
-      this.createdGreaterThan,
-    ],
+    filters: [],
     orderings: [
       {
         fieldName: "created",
@@ -178,11 +162,19 @@ export class TaskDoneSinceQueryBuilder {
     return this;
   }
   public equalToDone(value: boolean): this {
-    this.doneEqualTo.fieldValue = value;
+    this.datastoreQuery.filters.push({
+      fieldName: "done",
+      fieldValue: value,
+      operator: "=",
+    });
     return this;
   }
   public greaterThanCreated(value: number): this {
-    this.createdGreaterThan.fieldValue = value;
+    this.datastoreQuery.filters.push({
+      fieldName: "created",
+      fieldValue: value,
+      operator: ">",
+    });
     return this;
   }
   public build(): DatastoreQuery<Task> {
@@ -207,11 +199,11 @@ indexes:
         direction: asc
 ```
 
-Only composite indexes will be included in it, as it's Datastore's requirement. And only one composite index is generated because both queries can share the same index.
+`index.yaml` only contains composite indexes and needs to be uploaded to Datastore manually. It's generated based on the exact order of `filters` and `orderings` for each of `queries`. So the order matters a lot! It's recommended for you to read through Datastore's document carefully about queries and indexes or even play with it, especially note how the order of fields/properties in a composite index determines what kinds of queries are supported by that composite index. It's generated this way simply to keep things more manageable and predictable.And if you created some really complicated query, it's not guaranteed the generated composite index can support your query.
 
 If you already have `index.yaml`, and you run `selfage gen task -i index.yaml`, `index.yaml` will be updated to include the index above.
 
-Because of that, `selfage gen task -i index.yaml` will never delete indexes from `index.yaml` even if you deleted queries from `task.json`. You have to delete unused indexes manually from `index.yaml` and use Datastore's CLI to update your indexes in Datastore.
+Because of that, `selfage gen task -i index.yaml` will never delete indexes from `index.yaml` even if you deleted queries from `task.json`. You have to delete unused indexes manually from `index.yaml` and upload it to Datastore.
 
 ## Create DatastoreClient
 
@@ -314,9 +306,7 @@ async function main(): void {
 
 Note that you need to update the generated `index.yaml` to Datastore to build those indexes first.
 
-Because query order has already been specified in `queries` field, you only need to set the values to filter by. And you MUST set all filters, otherwise Datastore might complain because of the lack of a corresponding composite index.
-
-If you read through Datastore's document carefully about queries and indexes or have played with it, you might notice its restrctive requirements about the order of to apply filters and sort orders in a query, which has to match the order of fields/properties in the corresponding composite index. Therefore if you change the order of `filters` or `orderings` in e.g. `task.json`, you'd get a different composite index generated in `index.yaml` and a different `QueryBuilder`. When setting filters through `QueryBuilder`s, although you can set them in arbitrary order, they will be applied at the exact order as specified in `queries` field.
+Because query order has already been specified in `queries` field, you only need to set the values to filter by. And you MUST set all filters, otherwise Datastore might complain the lack of a corresponding composite index.
 
 ## Delete values
 

@@ -109,11 +109,11 @@ async function queryValues<T>(
   if (datastoreQuery.limit) {
     query.limit(datastoreQuery.limit);
   }
-  for (let ordering of datastoreQuery.orderings) {
-    query.order(ordering.fieldName, { descending: ordering.descending });
-  }
   for (let filter of datastoreQuery.filters) {
     query.filter(filter.fieldName, filter.operator, filter.fieldValue);
+  }
+  for (let ordering of datastoreQuery.orderings) {
+    query.order(ordering.fieldName, { descending: ordering.descending });
   }
   let response = await query.run();
   let values = new Array<T>();
