@@ -6,92 +6,17 @@
 
 ## Overview
 
-Written in TypeScript and compiled to ES6 with inline source map & source. See [@selfage/tsconfig](https://www.npmjs.com/package/@selfage/tsconfig) for full compiler options. Provides type-safe Google Cloud Datastore APIs as a thin layer on top of `@google-cloud/datastore`, especially when using together with `@selfage/cli` to generate TypeScript code.
+Written in TypeScript and compiled to ES6 with inline source map & source. See [@selfage/tsconfig](https://www.npmjs.com/package/@selfage/tsconfig) for full compiler options. Provides type-safe Google Cloud Datastore APIs as a thin layer on top of `@google-cloud/datastore`, though requiring `DatastoreModelDescriptor`s and `QueryBuilder`s generated from `@selfage/generator_cli`.
 
-You are also encouraged to understand how Datastore works essentially before using this lib.
+You are encouraged to understand how Datastore works essentially before using this lib.
 
-## Generate DatastoreModelDescriptor & QueryBuilder & composite indexes
+## Example generated code
 
-With `@selfage/cli`, it rqeuires an input file, e.g., `task.json` shown as the following.
-
-```JSON
-[{
-  "enum": {
-    "name": "Priority",
-    "values": [{
-      "name": "HIGH",
-      "value": 1
-    }, {
-      "name": "DEFAULT",
-      "value": 2
-    }]
-  }
-}, {
-  "message": {
-    "name": "Task",
-    "fields": [{
-      "name": "id",
-      "type": "string"
-    }, {
-      "name": "payload",
-      "type": "string"
-    }, {
-      "name": "done",
-      "type": "boolean"
-    }, {
-      "name": "priority",
-      "type": "Priority"
-    }, {
-      "name": "created",
-      "type": "number"
-    }],
-    "datastore": {
-      "output": "./task_model",
-      "key": "id",
-      "queries": [{
-        "name": "TaskDone",
-        "filters": [{
-          "fieldName": "done",
-          "operator": "="
-        }],
-        "orderings": [{
-          "fieldName": "created",
-          "descending": true
-        }, {
-          "fieldName": "priority",
-          "descending": false
-        }]
-      }, {
-        "name": "TaskDoneSince",
-        "filters": [{
-          "fieldName": "done",
-          "operator": "="
-        }, {
-          "fieldName": "created",
-          "operator": ">"
-        }],
-        "orderings": [{
-          "fieldName": "created",
-          "descending": true
-        }, {
-          "fieldName": "priority",
-          "descending": false
-        }]
-      }]
-    }
-  }
-}]
-```
-
-The schema of this json file is an array of [Definition](https://github.com/selfage/cli/blob/0f724015a4ea309d80ff231db555fe0383c91329/generate/definition.ts#L73).
-
-By running `selfage gen task -i index.yaml`, you will to get `task.ts`, `task_model.ts` and `index.yaml`.
-
-See `@selfage/message` for detailed explanation of generating message and enum descriptors to help understand `task.json`. In short, `task.ts` will export `Task` interface, `TASK` message descriptor, `Priority` enum, and `PRIORITY` enum descriptor which are used by examples later. `task_model.ts` is shown as below.
+See [@selfage/generator_cli#datastore-client](https://github.com/selfage/generator_cli#datastore-client) for how to generate `DatastoreModelDescriptor`s and `QueryBuilder`s. Suppose the following has been generated and committed as `task_model.ts`. We will continue using the example below.
 
 ```TypeScript
 import { DatastoreQuery, DatastoreFilter, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
-import { Task, TASK } from './temp';
+import { Task, TASK } from './task'; // Also generated from @selfage/generator_cli.
 
 export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
   name: "Task",
@@ -103,7 +28,7 @@ export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
 export class TaskDoneQueryBuilder {
   private datastoreQuery: DatastoreQuery<Task> = {
     modelDescriptor: TASK_MODEL,
-    filters: [],
+    filters: new Array<DatastoreFilter>(),
     orderings: [
       {
         fieldName: "created",
@@ -140,7 +65,7 @@ export class TaskDoneQueryBuilder {
 export class TaskDoneSinceQueryBuilder {
   private datastoreQuery: DatastoreQuery<Task> = {
     modelDescriptor: TASK_MODEL,
-    filters: [],
+    filters: new Array<DatastoreFilter>(),
     orderings: [
       {
         fieldName: "created",
@@ -183,28 +108,6 @@ export class TaskDoneSinceQueryBuilder {
 }
 ```
 
-It's recommended to commit `task_model.ts` as part of your project, because you will need to reference the generated code in other files. We will explain its usage as an example below.
-
-It's also recommneded to commit `index.yaml` as well as upload it to Datastore, which looks like the following.
-
-```YAML
-indexes:
-  - kind: Task
-    properties:
-      - name: done
-        direction: asc
-      - name: created
-        direction: desc
-      - name: priority
-        direction: asc
-```
-
-`index.yaml` only contains composite indexes and needs to be uploaded to Datastore manually. It's generated based on the exact order of `filters` and `orderings` for each of `queries`. So the order matters a lot! It's recommended for you to read through Datastore's document carefully about queries and indexes or even play with it, especially note how the order of fields/properties in a composite index determines what kinds of queries are supported by that composite index. It's generated this way simply to keep things more manageable and predictable.And if you created some really complicated query, it's not guaranteed the generated composite index can support your query.
-
-If you already have `index.yaml`, and you run `selfage gen task -i index.yaml`, `index.yaml` will be updated to include the index above.
-
-Because of that, `selfage gen task -i index.yaml` will never delete indexes from `index.yaml` even if you deleted queries from `task.json`. You have to delete unused indexes manually from `index.yaml` and upload it to Datastore.
-
 ## Create DatastoreClient
 
 You can simply create a `DatastoreClient` with default Datastore configuration, which assumes you are running under Google Cloud environment, e.g., on a Compute Engine. Or pass in your own configured `Datastore` instance. See `@google-cloud/datastore` for their documents.
@@ -219,12 +122,12 @@ let client2 = new DatastoreClient(new Datastore());
 
 ## Save values
 
-With `TASK_MODEL` generated above, you can save an array of values with it via `DatastoreClient`'s `save()`. The name of the model `Task` and the `id` field (because you specifed `"key": "id"`) will be used together as the Datastore key, which also means you have to populate `id` field ahead of time. And because you have defined what indexes you want to use, only properties referenced by those indexes will be actually indexed by Datastore, saving you from unnecessary Datastore operations.
+To save values, you can use `DatastoreClient`'s `save()`, which takes a generated `DatastoreModelDescriptor`, e.g. `TASK_MODEL`. The name of the model `Task` and the `id` field, because of `"key": "id"`, will be used together as the Datastore key, which also means you have to populate `id` field ahead of time. Note that only fields that are used by queries are indexed, and the rest are excluded.
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
-import { TASK_MODEL } from './task_model';
-import { Task, Priority } from './task';
+import { TASK_MODEL } from './task_model'; // Generated by @selfage/generator_cli.
+import { Task, Priority } from './task'; // Generated by @selfage/generator_cli.
 
 async function main(): void {
   let client = DatastoreClient.create();
@@ -250,8 +153,8 @@ Because we have to populate `id` field (or whatever field you specified for `"ke
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
-import { TASK_MODEL } from './task_model';
-import { Task, Priority } from './task';
+import { TASK_MODEL } from './task_model'; // Generated by @selfage/generator_cli.
+import { Task, Priority } from './task'; // Generated by @selfage/generator_cli.
 
 async function main(): void {
   let client = DatastoreClient.create();
@@ -265,7 +168,7 @@ async function main(): void {
 }
 ```
 
-Note the field for key has to be of string type and thus we will always store Datastore key as `[kind, name]`. This decision is opinionated that we don't have to struggle with number vs string when coding, reading or debugging.
+Note the field for key has to be of `string` type and thus we will always store Datastore key as `[kind, name]`. This decision is opinionated that we don't have to struggle with number vs string when coding, reading or debugging.
 
 Datastore actually allocate ids as int64 numbers, but JavaScript's number cannot be larger than 2^53. Therefore the response from Datastore is actually a 10-based string. We here further convert it to a base64 string to save a bit storage.
 
@@ -275,8 +178,8 @@ Getting values is straightforward with a list of `id`.
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
-import { TASK_MODEL } from './task_model';
-import { Task, Priority } from './task';
+import { TASK_MODEL } from './task_model'; // Generated by @selfage/generator_cli.
+import { Task, Priority } from './task'; // Generated by @selfage/generator_cli.
 
 async function main(): void {
   let client = DatastoreClient.create();
@@ -290,7 +193,7 @@ async function main(): void {
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
-import { TASK_MODEL, TaskDoneQueryBuilder } from './task_model';
+import { TASK_MODEL, TaskDoneQueryBuilder } from './task_model'; // Generated by @selfage/generator_cli.
 
 async function main(): void {
   let client = DatastoreClient.create();
@@ -314,8 +217,8 @@ Simply providing a list of `id`.
 
 ```TypeScript
 import { DatastoreClient } from '@selfage/datastore_client';
-import { TASK_MODEL } from './task_model';
-import { Task, Priority } from './task';
+import { TASK_MODEL } from './task_model'; // Generated by @selfage/generator_cli.
+import { Task, Priority } from './task'; // Generated by @selfage/generator_cli.
 
 async function main(): void {
   let client = DatastoreClient.create();
@@ -342,87 +245,6 @@ async function main(): void {
 }
 ```
 
-## Known issue
-
-Note that if your Datastore model uses an enum which is defined in an NPM package, the generated Datastore model file cannot import that enum properly. Simplify the example above `task.json` as below.
-
-```JSON
-[{
-  "message": {
-    "name": "Task",
-    "fields": [{
-      "name": "id",
-      "type": "string"
-    }, {
-      "name": "priority",
-      "type": "Priority",
-      "import": "priority_package"
-    }],
-    "datastore": {
-      "output": "./task_model",
-      "key": "id",
-      "indexes": [{
-        "name": "TaskPriority",
-        "fields": [{
-          "fieldName": "priority"
-        }]
-      }]
-    }
-  }
-}]
-```
-
-By running `selfage gen task -i index.yaml`, you will get `task_model.ts` as below, igoring the other two files.
-
-```TypeScript
-import { DatastoreQuery, DatastoreFilter, DatastoreOrdering, Operator, DatastoreModelDescriptor } from '@selfage/datastore_client/model_descriptor';
-import { Priority } from './priority_package';
-import { Task, TASK } from './task';
-
-export let TASK_MODEL: DatastoreModelDescriptor<Task> = {
-  name: "Task",
-  key: "id",
-  excludedIndexes: ["id"],
-  valueDescriptor: TASK,
-}
-
-export class TaskPriorityQueryBuilder {
-  private datastoreQuery: DatastoreQuery<Task>;
-
-  public constructor() {
-    this.datastoreQuery = {
-      modelDescriptor: TASK_MODEL,
-      filters: new Array<DatastoreFilter>(),
-      orderings: [
-      ]
-    }
-  }
-  public start(cursor: string): this {
-    this.datastoreQuery.startCursor = cursor;
-    return this;
-  }
-  public limit(num: number): this {
-    this.datastoreQuery.limit = num;
-    return this;
-  }
-  public filterByPriority(operator: Operator, value: Priority): this {
-    this.datastoreQuery.filters.push({
-      fieldName: "priority",
-      fieldValue: value,
-      operator: operator,
-    });
-    return this;
-  }
-  public build(): DatastoreQuery<Task> {
-    return this.datastoreQuery;
-  }
-}
-```
-
-Note that `import { Priority } from './priority_package';` is incorrect, which should be `import { Priority } from 'priority_package';`.
-
-It might seem easy to fix for this case. But it can get messy, if `task.ts` and `task_model.ts` are located in two directories, e.g., `./directory_a/task.ts` and `./directory_b/task_model.ts`, where each directory contains its own `./node_modules/` directory. Then `import { Priority } from 'priority_package';` inside `task.ts` resolves to `./directory_a/node_modules/priority_package`, whereas inside `task_model.ts` it resolves to `./directory_b/node_modules/priority_package`.
-
 ## Design considerations
 
-We choose to define `datastore` field inside `message` because any change of `message` must be also reflected in the generated `DatastoreModelDescriptor` and `QueryBuilder` in one PR/git commit, to make sure fields are properly indexed. Otherwise, they might not be excluded from indexing or composite indexes might need to be back-filled. 
+We choose to define `datastore` field inside `message` because any change of `message` must be also reflected in the generated `DatastoreModelDescriptor` and `QueryBuilder` in one PR/git commit, to make sure fields are properly indexed. Otherwise, they might not be excluded from indexing or composite indexes might need to be back-filled.
